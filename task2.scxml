@@ -1,0 +1,196 @@
+<?xml version="1.0"?>
+<scxml
+	xmlns="http://www.w3.org/2005/07/scxml" version="1.0"
+	xmlns:injaz="http://actions.injaz.edafa.com/injaz"
+	xmlns:http="http://actions.injaz.edafa.com/http"
+	xmlns:db="http://actions.injaz.edafa.com/db"
+	xmlns:kpi="http://actions.injaz.edafa.com/kpi"
+>
+
+
+	<datamodel>
+
+		<!-- Request Parameters -->
+		<data id="mobileNum" expr="null"/>
+		<data id="sessionId" expr="null"/>
+		<data id="status" expr="'FAIL'"/>
+		<data id="requestCounter" expr="0"/>
+		<!-- log Parameters -->
+		<data id="stateName" expr="null"/>
+		
+		<!-- number format params -->
+		<data id="formattedNumber" expr="null"/>
+
+		<!-- db parameters -->
+		<data id="profileID" expr="null"/>
+		<data id="queryId" expr="null"/>
+		<data id="queryId2" expr="null"/>
+		<data id="dbResponse" expr="null"/>
+		<data id="dbResult" expr="null"/>
+		<!-- http parameters -->
+		<data id="url" expr="null"/>
+		<data id="httpResponse" expr="null"/>
+		<data id="httpResult" expr="'Not Found'"/>
+		
+		<!--kpis-->
+		<data id="kpiContext" expr="'login.serviceflows'"/>
+		<data id="kpiSetSystem" expr="'system_counters'"/>
+
+	</datamodel>
+
+				<!-- <injaz:Format msisdn="'+201005122113'" msisdnFormat="'NATIONAL_KEY'" formatLandLine="false" formatWildCard="false" formatShortNumbers="false" response="formattedMsisdn"/> -->
+
+
+	<state id="IDLE">
+
+		<transition event="HttpRequest.POST">
+			<assign location="stateName" expr="'IDLE'"/>
+			<injaz:Log logLevel="'info'" message="stateName + ' | event=' + _event.name + ', Request, requestParameters=' + _event.data" marker="'CONFIDENTIAL'"/>
+			
+
+			<if cond="_event.data.containsKey('sessionId') and _event.data.containsKey('mobileNum')">
+				<assign location="sessionId" expr="_event.data.get('sessionId')"/>
+				<assign location="mobileNum" expr="_event.data.get('mobileNum')"/>
+				<raise event="internal.idle.parametersStored"/>
+				<injaz:Log logLevel="'info'" message="stateName +' | '+ sessionId + ' in if condition'"/>
+
+
+			<else/>
+				<raise event="internal.idle.invalidRequestParameters"/>
+				<assign location="status" expr="'Invalid request parameters'"/>
+				<injaz:Log logLevel="'info'" message="stateName + ' in else condition'"/>
+			</if>
+
+
+		</transition>
+
+		<transition event="internal.idle.invalidRequestParameters" target="FINAL"/>
+		<transition event="internal.idle.parametersStored" target="CHECK_CRED"/>
+
+
+
+	</state>
+
+
+
+
+
+	<state id="CHECK_CRED">
+		<onentry>
+			<assign location="stateName" expr="'CHECK_CRED'"/>
+			<assign location="profileID" expr="'userProfile'"/>
+			<assign location="queryId" expr="'getWithSession'"/>
+			<raise event="internal.CHECK_CRED.dealWithDb"/>
+		</onentry>	
+		
+		<transition event="internal.CHECK_CRED.dealWithDb">
+
+			<db:Execute profileID="profileID" response="dbResponse">
+					<QueryParams>
+						<QueryParam name="$inputSessionId" value="sessionId"/>
+					</QueryParams>
+
+					<Queries>
+							<Query id="getWithSession" enable="true"/>
+							<Query id="getUserInfo" enable="false"/>
+							<Query id="putSessionId" enable="false"/>
+
+					</Queries>
+
+			</db:Execute>
+
+ 			<assign location="dbResult" expr="dbResponse.getResponse().getDbResponse().get(queryId).getResponseObject().getSelectedRows()"/>
+			<injaz:Log logLevel="'info'" message="'dbResponse= '+dbResult"/>
+
+			<if cond="dbResult.size()>0">
+				<injaz:Format msisdn="mobileNum"
+							msisdnFormat="'NATIONAL_KEY'" formatLandLine="false"
+							formatWildCard="false" formatShortNumbers="false"
+							response="formattedNumber" />
+				<injaz:Log logLevel="'info'" message="'Num= '+formattedNumber"/>
+
+				<if cond="dbResult.get(0).get('mobileNum').equals(formattedNumber)">
+					<raise event="internal.CHECK_CRED.credSuccess"/>
+					
+				<else/>
+					<assign location="status" expr="'authentication failed'" />
+					<raise event="internal.CHECK_CRED.credFailed"/>
+				</if>
+				<raise event="internal.CHECK_CRED.dbFininshed"/>
+				<else/>
+					<assign location="status" expr="'authentication failed'" />
+					<raise event="internal.CHECK_CRED.credNotFound"/>
+			</if>
+			
+		
+	</transition>
+			<transition event="internal.CHECK_CRED.credNotFound" target="FINAL"/>
+			<transition event="internal.CHECK_CRED.credFailed" target="FINAL"/>
+			<transition event="internal.CHECK_CRED.credSuccess" target="REQUEST_DATA"/>
+
+	</state>
+
+
+	<state id="REQUEST_DATA">
+
+		<onentry>
+			<assign location="stateName" expr="'REQUEST_DATA'"/>
+			<raise event="internal.REQUEST_DATA.requestData"/> 
+		</onentry>
+
+		<transition event="internal.REQUEST_DATA.requestData">
+			<http:Request url="'http://localhost:8080/injaz/hello'"
+				httpMethod="'POST'" requestParsingType="'JSON'"
+				responseParsingType="'JSON'" connectTimeout="100" readTimeout="2000"
+				response="httpResponse">
+				<RequestParams>
+				<RequestParam name="mobileNum"
+				value="formattedNumber" />
+				</RequestParams>
+				<Headers>
+				<Header name="Content-type"
+				value="'application/json'" />
+				</Headers>
+			</http:Request>
+			<if cond="httpResponse.getStatus().equals('success')">
+				<assign location="httpResult" expr="httpResponse.getResponse().getResponseParams().get('responseId')"/>
+				<injaz:Log logLevel="'info'" message="'httpResponse= '+httpResult"/>
+				<assign location="status" expr="'success'"/>
+				<raise event="internal.REQUEST_DATA.success"/>
+			<else/>
+				<raise event="internal.REQUEST_DATA.failed"/>
+			</if>
+			
+
+
+		</transition>
+
+		<transition event="internal.REQUEST_DATA.success" target="FINAL"/>
+		<transition event="internal.REQUEST_DATA.failed" target="FINAL"/>
+
+
+	</state>
+
+
+	<state id="FINAL">
+
+		<onentry>
+
+			<assign location="stateName" expr="'FINAL'"/>
+
+			<http:Respond profileID="'JSON_RESPONSE'">
+				<ResponseParams>
+
+ 					<ResponseParam name="status" value="status" />
+ 					<ResponseParam name="RquestedData" value="httpResult"/>
+				</ResponseParams>
+			</http:Respond>
+
+		</onentry>
+			
+
+
+	</state>
+
+
+	</scxml>
