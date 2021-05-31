@@ -46,19 +46,22 @@
 
 		<transition event="HttpRequest.POST">
 			<assign location="stateName" expr="'IDLE'"/>
-			<injaz:Log logLevel="'info'" message="stateName + ' | event=' + _event.name + ', Request, requestParameters=' + _event.data" marker="'CONFIDENTIAL'"/>
 
+			<injaz:Log logLevel="'info'" message="stateName + ' | event=' + _event.name + ', Get User Data Request, requestParameters=' + _event.data" marker="'CONFIDENTIAL'"/>
 
-			<if cond="_event.data.containsKey('sessionId') and _event.data.containsKey('mobileNum')">
+			<if cond="( _event.data.containsKey('sessionId')
+					and _event.data.containsKey('mobileNum') )">
 				<assign location="sessionId" expr="_event.data.get('sessionId')"/>
 				<assign location="mobileNum" expr="_event.data.get('mobileNum')"/>
 
 				<raise event="internal.idle.parametersStored"/>
 
+				<!-- TODO .. SHOULD BE .. Don't write any line after the raise tag -->
 				<injaz:Log logLevel="'info'" message="stateName +' | '+ sessionId + ' in if condition'"/>
 			<else/>
 				<raise event="internal.idle.invalidRequestParameters"/>
 
+				<!-- TODO .. SHOULD BE .. Don't write any line after the raise tag -->
 				<assign location="status" expr="'Invalid request parameters'"/>
 
 				<injaz:Log logLevel="'info'" message="stateName + ' in else condition'"/>
@@ -71,6 +74,7 @@
 
 	</state>
 
+	<!-- TODO .. MAY BE .. Use full name -->
 	<state id="CHECK_CRED">
 
 		<onentry>
@@ -79,6 +83,7 @@
 			<assign location="profileID" expr="'userProfile'"/>
 			<assign location="queryId" expr="'getWithSession'"/>
 
+			<!-- TODO .. MAY BE .. We did not need to raise event here -->
 			<raise event="internal.CHECK_CRED.dealWithDb"/>
 		</onentry>
 
@@ -87,6 +92,7 @@
 					<QueryParams>
 						<QueryParam name="$inputSessionId" value="sessionId"/>
 					</QueryParams>
+					<!-- TODO .. SHOULD BE .. Why are you add multiple queries? -->
 					<Queries>
 							<Query id="getWithSession" enable="true"/>
 							<Query id="getUserInfo" enable="false"/>
@@ -94,6 +100,7 @@
 					</Queries>
 			</db:Execute>
 
+			<!-- TODO .. MUST BE Check status before access dbResult -->
 			<assign location="dbResult" expr="dbResponse.getResponse().getDbResponse().get(queryId).getResponseObject().getSelectedRows()"/>
 
 			<injaz:Log logLevel="'info'" message="'dbResponse= '+dbResult"/>
@@ -102,6 +109,7 @@
 				<injaz:Format msisdn="mobileNum" msisdnFormat="'NATIONAL_KEY'" formatLandLine="false" formatWildCard="false" formatShortNumbers="false" response="formattedNumber"/>
 				<injaz:Log logLevel="'info'" message="'Num= '+formattedNumber"/>
 
+				<!-- TODO .. MUST BE .. You Shall be compare "formattedNumber" with mobile number returned from DB  -->
 				<if cond="dbResult.get(0).get('mobileNum').equals(formattedNumber)">
 
 					<raise event="internal.CHECK_CRED.credSuccess"/>
@@ -113,7 +121,9 @@
 
 				<raise event="internal.CHECK_CRED.dbFininshed"/>
 			<else/>
+				<!-- TODO .. MUST BE .. Wrong status, it shall be "Invalid request parameters" -->
 				<assign location="status" expr="'authentication failed'" />
+
 				<raise event="internal.CHECK_CRED.credNotFound"/>
 			</if>
 
@@ -132,10 +142,12 @@
 		<onentry>
 			<assign location="stateName" expr="'REQUEST_DATA'"/>
 
+			<!-- TODO .. MAY BE .. We did not need to raise event here -->
 			<raise event="internal.REQUEST_DATA.requestData"/>
 		</onentry>
 
 		<transition event="internal.REQUEST_DATA.requestData">
+			<!-- TODO .. SHOULD BE .. get {url, connectTimeout, readTimeout} from cfg -->
 			<http:Request url="'http://localhost:8080/injaz/hello'" httpMethod="'POST'" requestParsingType="'JSON'" responseParsingType="'JSON'" connectTimeout="100" readTimeout="2000" response="httpResponse">
 				<RequestParams>
 					<RequestParam name="mobileNum" value="formattedNumber" />
@@ -145,6 +157,7 @@
 				</Headers>
 			</http:Request>
 
+			<!-- TODO .. MUST BE Check "httpResponse.getResponse().getStatusCode() == 200" before get httpResult -->
 			<if cond="httpResponse.getStatus().equals('success')">
 				<assign location="httpResult" expr="httpResponse.getResponse().getResponseParams().get('responseId')"/>
 
@@ -172,6 +185,7 @@
 			<http:Respond profileID="'JSON_RESPONSE'">
 				<ResponseParams>
  					<ResponseParam name="status" value="status" />
+ 					<!-- TODO .. SHOULD BE .. Did not use "httpResult" as ResponseParam -->
  					<ResponseParam name="RquestedData" value="httpResult"/>
 				</ResponseParams>
 			</http:Respond>
