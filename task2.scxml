@@ -35,17 +35,17 @@
 		<data id="httpResult" expr="'Not Found'"/>
 
 		<!--kpis-->
-		<data id="kpiContext" expr="'login.serviceflows'"/>
+		<data id="kpiContext" expr="'inquireUserData.serviceflows'"/>
 		<data id="kpiSetSystem" expr="'system_counters'"/>
 
 	</datamodel>
-
-				<!-- <injaz:Format msisdn="'+201005122113'" msisdnFormat="'NATIONAL_KEY'" formatLandLine="false" formatWildCard="false" formatShortNumbers="false" response="formattedMsisdn"/> -->
 
 	<state id="IDLE">
 
 		<transition event="HttpRequest.POST">
 			<assign location="stateName" expr="'IDLE'"/>
+
+			<kpi:Increment kpiContext="kpiContext" kpiSet="kpiSetSystem" kpi="'total_requests'" value="1l"/>
 
 			<injaz:Log logLevel="'info'" message="stateName + ' | event=' + _event.name + ', Get User Data Request, requestParameters=' + _event.data" marker="'CONFIDENTIAL'"/>
 
@@ -104,6 +104,7 @@
 			<assign location="dbResult" expr="dbResponse.getResponse().getDbResponse().get(queryId).getResponseObject().getSelectedRows()"/>
 
 			<injaz:Log logLevel="'info'" message="'dbResponse= '+dbResult"/>
+			<kpi:Increment kpiContext="kpiContext" kpiSet="kpiSetSystem" kpi="'total_db'" value="1l"/>
 
 			<if cond="dbResult.size()>0">
 				<injaz:Format msisdn="mobileNum" msisdnFormat="'NATIONAL_KEY'" formatLandLine="false" formatWildCard="false" formatShortNumbers="false" response="formattedNumber"/>
@@ -147,6 +148,8 @@
 		</onentry>
 
 		<transition event="internal.REQUEST_DATA.requestData">
+			<kpi:Increment kpiContext="kpiContext" kpiSet="kpiSetSystem" kpi="'total_http_apis'" value="1l"/>
+
 			<!-- TODO .. SHOULD BE .. get {url, connectTimeout, readTimeout} from cfg -->
 			<http:Request url="'http://localhost:8080/injaz/hello'" httpMethod="'POST'" requestParsingType="'JSON'" responseParsingType="'JSON'" connectTimeout="100" readTimeout="2000" response="httpResponse">
 				<RequestParams>
@@ -167,6 +170,7 @@
 
 				<raise event="internal.REQUEST_DATA.success"/>
 			<else/>
+				<kpi:Increment kpiContext="kpiContext" kpiSet="kpiSetSystem" kpi="'total_http_apis_errors'" value="1l"/>
 				<raise event="internal.REQUEST_DATA.failed"/>
 			</if>
 		</transition>
