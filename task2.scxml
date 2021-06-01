@@ -33,13 +33,10 @@
 		<data id="httpResult" expr="'Not Found'"/>
 		
 		<!--kpis-->
-		<data id="kpiContext" expr="'login.serviceflows'"/>
+		<data id="kpiContext" expr="'inquireUserData.serviceflows'"/>
 		<data id="kpiSetSystem" expr="'system_counters'"/>
 
 	</datamodel>
-
-				<!-- <injaz:Format msisdn="'+201005122113'" msisdnFormat="'NATIONAL_KEY'" formatLandLine="false" formatWildCard="false" formatShortNumbers="false" response="formattedMsisdn"/> -->
-
 
 	<state id="IDLE">
 
@@ -47,6 +44,7 @@
 			<assign location="stateName" expr="'IDLE'"/>
 			<injaz:Log logLevel="'info'" message="stateName + ' | event=' + _event.name + ', Request, requestParameters=' + _event.data" marker="'CONFIDENTIAL'"/>
 			
+			<kpi:Increment kpiContext="kpiContext" kpiSet="kpiSetSystem" kpi="'total_requests'" value="1l"/>
 
 			<if cond="_event.data.containsKey('sessionId') and _event.data.containsKey('mobileNum')">
 				<assign location="sessionId" expr="_event.data.get('sessionId')"/>
@@ -101,6 +99,7 @@
 
  			<assign location="dbResult" expr="dbResponse.getResponse().getDbResponse().get(queryId).getResponseObject().getSelectedRows()"/>
 			<injaz:Log logLevel="'info'" message="'dbResponse= '+dbResult"/>
+			<kpi:Increment kpiContext="kpiContext" kpiSet="kpiSetSystem" kpi="'total_db'" value="1l"/>
 
 			<if cond="dbResult.size()>0">
 				<injaz:Format msisdn="mobileNum"
@@ -139,6 +138,9 @@
 		</onentry>
 
 		<transition event="internal.REQUEST_DATA.requestData">
+
+			<kpi:Increment kpiContext="kpiContext" kpiSet="kpiSetSystem" kpi="'total_http_apis'" value="1l"/>
+
 			<http:Request url="'http://localhost:8080/injaz/hello'"
 				httpMethod="'POST'" requestParsingType="'JSON'"
 				responseParsingType="'JSON'" connectTimeout="100" readTimeout="2000"
@@ -158,6 +160,7 @@
 				<assign location="status" expr="'success'"/>
 				<raise event="internal.REQUEST_DATA.success"/>
 			<else/>
+				<kpi:Increment kpiContext="kpiContext" kpiSet="kpiSetSystem" kpi="'total_http_apis_errors'" value="1l"/>
 				<raise event="internal.REQUEST_DATA.failed"/>
 			</if>
 			
